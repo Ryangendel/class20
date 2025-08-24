@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <body>
+    <button id="load">Load message</button>
+    <pre id="out"></pre>
+
+
+    <script>
+      const KEY = "msg_cache";
+      const TTL = 15 * 1000; // 15s local cache
+
+      async function getMessage() {
+        // 1) localStorage TTL cache //TIME TO LIVE
+        const now = Date.now();
+        const raw = localStorage.getItem(KEY);
+        if (raw) {
+          try {
+            const { value, expires } = JSON.parse(raw);
+            if (expires > now) {
+              return { source: "localStorage", ...value };
+            }
+          } catch {}
+        }
+
+        // 2) Fetch from server (browser may use HTTP cache / ETag under the hood)
+        const res = await fetch("/api/message");
+        // If 304, the browser will usually give you a cached body automatically.
+        const json = await res.json();
+        // Save to localStorage
+        localStorage.setItem(KEY, JSON.stringify({
+          value: json,
+          expires: now + TTL
+        }));
+        return { source: "network", ...json };
+      }
+
+      document.getElementById("load").onclick = async () => {
+        const out = document.getElementById("out");
+        out.textContent = "Loading...";
+        const msg = await getMessage();
+        out.textContent = JSON.stringify(msg, null, 2);
+      };
+    </script>
+  </body>
+</html>
